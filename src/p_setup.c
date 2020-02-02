@@ -3703,7 +3703,7 @@ void HWR_SetupLevel(void)
 	// when the texture list is loaded.
 
 	// Sal: Unfortunately, NOT freeing them causes the dreaded Color Bug.
-	HWR_FreeTextureCache();
+	HWR_FreeMipmapCache();
 
 #ifdef ALAM_LIGHTING
 	// BP: reset light between levels (we draw preview frame lights on current frame)
