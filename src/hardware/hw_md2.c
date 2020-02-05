@@ -672,6 +672,7 @@ static void HWR_CreateBlendedTexture(GLPatch_t *gpatch, GLPatch_t *blendgpatch, 
 	if (color != SKINCOLOR_NONE)
 	{
 		UINT8 numdupes = 1;
+		UINT8 prevdupes = numdupes;
 
 		translation[translen] = Color_Index[color-1][0];
 		cutoff[translen] = 255;
@@ -686,9 +687,15 @@ static void HWR_CreateBlendedTexture(GLPatch_t *gpatch, GLPatch_t *blendgpatch, 
 
 			if (translen > 0)
 			{
-				cutoff[translen] = cutoff[translen-1] - (256 / (16 / numdupes));
+				INT16 newcutoff = cutoff[translen-1] - (255 / (16 / prevdupes));
+
+				if (newcutoff < 0)
+					newcutoff = 0;
+
+				cutoff[translen] = (UINT8)newcutoff;
 			}
 
+			prevdupes = numdupes;
 			numdupes = 1;
 			translen++;
 
@@ -855,16 +862,9 @@ static void HWR_CreateBlendedTexture(GLPatch_t *gpatch, GLPatch_t *blendgpatch, 
 						}
 
 						secondi = firsti+1; // next color in line
-						if (secondi >= translen)
-						{
-							m = (INT16)brightness; // - 0;
-							d = (INT16)colorbrightnesses[firsti]; // - 0;
-						}
-						else
-						{
-							m = (INT16)brightness - (INT16)colorbrightnesses[secondi];
-							d = (INT16)colorbrightnesses[firsti] - (INT16)colorbrightnesses[secondi];
-						}
+
+						m = (INT16)brightness - (INT16)colorbrightnesses[secondi];
+						d = (INT16)colorbrightnesses[firsti] - (INT16)colorbrightnesses[secondi];
 
 						if (m >= d)
 							m = d-1;
@@ -891,29 +891,15 @@ static void HWR_CreateBlendedTexture(GLPatch_t *gpatch, GLPatch_t *blendgpatch, 
 
 						secondi = firsti+1;
 
-						mulmax = cutoff[firsti];
-						if (secondi < translen)
-							mulmax -= cutoff[secondi];
-
+						mulmax = cutoff[firsti] - cutoff[secondi];
 						mul = cutoff[firsti] - brightness;
 					}
 
 					blendcolor = V_GetColor(translation[firsti]);
 
-					if (secondi >= translen)
-						mul = 0;
-
 					if (mul > 0) // If it's 0, then we only need the first color.
 					{
-#if 0
-						if (secondi >= translen)
-						{
-							// blend to black
-							nextcolor = V_GetColor(31);
-						}
-						else
-#endif
-							nextcolor = V_GetColor(translation[secondi]);
+						nextcolor = V_GetColor(translation[secondi]);
 
 						// Find difference between points
 						r = (INT32)(nextcolor.s.red - blendcolor.s.red);
