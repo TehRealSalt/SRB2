@@ -1474,21 +1474,6 @@ boolean W_IsPatchCached(lumpnum_t lumpnum, void *ptr)
 	return W_IsPatchCachedPWAD(WADFILENUM(lumpnum),LUMPNUM(lumpnum), ptr);
 }
 
-void W_FlushCachedPatches(void)
-{
-	if (needpatchflush)
-	{
-		Z_FreeTag(PU_CACHE);
-		Z_FreeTag(PU_PATCH);
-		Z_FreeTag(PU_HUDGFX);
-		Z_FreeTag(PU_HWRPATCHINFO);
-		Z_FreeTag(PU_HWRMODELTEXTURE);
-		Z_FreeTag(PU_HWRCACHE);
-		Z_FreeTags(PU_HWRCACHE_UNLOCKED, PU_HWRMODELTEXTURE_UNLOCKED);
-	}
-	needpatchflush = false;
-}
-
 // ==========================================================================
 // W_CacheLumpName
 // ==========================================================================
@@ -1517,9 +1502,6 @@ void *W_CachePatchNumPwad(UINT16 wad, UINT16 lump, INT32 tag)
 #ifdef HWRENDER
 	GLPatch_t *grPatch;
 #endif
-
-	if (needpatchflush)
-		W_FlushCachedPatches();
 
 	if (!TestValidLump(wad, lump))
 		return NULL;
@@ -1911,8 +1893,6 @@ int W_VerifyNMUSlumps(const char *filename)
 		{"YB_", 3}, // Intermission graphics, goes with the above
 		{"M_", 2}, // As does menu stuff
 		{"MUSICDEF", 8}, // Song definitions (thanks kart)
-		{"SHADERS", 7}, // Shader definitions
-		{"SH_", 3}, // GLSL shader
 
 		{NULL, 0},
 	};

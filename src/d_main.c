@@ -595,15 +595,16 @@ static void D_Display(void)
 	needpatchrecache = false;
 }
 
-// Lactozilla: Check the renderer's state
+// Check the renderer's state
 // after a possible renderer switch.
 void D_CheckRendererState(void)
 {
 	// flush all patches from memory
-	// (also frees memory tagged with PU_CACHE)
-	// (which are not necessarily patches but I don't care)
 	if (needpatchflush)
+	{
 		Z_FlushCachedPatches();
+		needpatchflush = false;
+	}
 
 	// some patches have been freed,
 	// so cache them again
@@ -659,7 +660,7 @@ void D_SRB2Loop(void)
 	*/
 	/* Smells like a hack... Don't fade Sonic's ass into the title screen. */
 	if (gamestate != GS_TITLESCREEN)
-		V_DrawScaledPatch(0, 0, 0, W_CachePatchNum(W_GetNumForName("CONSBACK"), PU_CACHE));
+		V_DrawScaledPatch(0, 0, 0, W_CachePatchNum(W_GetNumForName("CONSBACK"), PU_PATCH));
 
 	for (;;)
 	{
@@ -1295,6 +1296,7 @@ void D_SRB2Main(void)
 		needpatchrecache = true;
 		VID_CheckRenderer();
 		SCR_ChangeRendererCVars(setrenderneeded);
+		setrenderneeded = 0;
 	}
 	D_CheckRendererState();
 

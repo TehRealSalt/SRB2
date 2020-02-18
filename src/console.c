@@ -1624,10 +1624,7 @@ void CON_Drawer(void)
 		return;
 
 	if (needpatchrecache)
-	{
-		W_FlushCachedPatches();
 		HU_LoadGraphics();
-	}
 
 	if (con_recalc)
 	{

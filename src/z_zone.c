@@ -501,17 +501,14 @@ void Z_FreeTags(INT32 lowtag, INT32 hightag)
 // Utility functions
 // -----------------
 
-// for renderer switching, free a bunch of stuff
+// for renderer switching
 boolean needpatchflush = false;
 boolean needpatchrecache = false;
 
 // flush all patches from memory
-// (also frees memory tagged with PU_CACHE)
-// (which are not necessarily patches but I don't care)
 void Z_FlushCachedPatches(void)
 {
 	CONS_Debug(DBG_RENDER, "Z_FlushCachedPatches()...\n");
-	Z_FreeTag(PU_CACHE);
 	Z_FreeTag(PU_PATCH);
 	Z_FreeTag(PU_HUDGFX);
 	Z_FreeTag(PU_HWRPATCHINFO);
@@ -816,8 +813,8 @@ static void Command_Memfree_f(void)
 		CONS_Printf(M_GetText("Mipmap patches    : %7s KB\n"), sizeu1(Z_TagUsage(PU_HWRPATCHCOLMIPMAP)>>10));
 		CONS_Printf(M_GetText("HW Texture cache  : %7s KB\n"), sizeu1(Z_TagUsage(PU_HWRCACHE)>>10));
 		CONS_Printf(M_GetText("Plane polygons    : %7s KB\n"), sizeu1(Z_TagUsage(PU_HWRPLANE)>>10));
-		CONS_Printf(M_GetText("HW Texture used   : %7d KB\n"), HWR_GetTextureUsed()>>10);
 		CONS_Printf(M_GetText("HW model textures : %7s KB\n"), sizeu1(Z_TagUsage(PU_HWRMODELTEXTURE)>>10));
+		CONS_Printf(M_GetText("HW Texture used   : %7d KB\n"), HWR_GetTextureUsed()>>10);
 	}
 #endif
 
