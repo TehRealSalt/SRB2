@@ -8472,10 +8472,8 @@ static void P_SpawnFriction(void)
 			// The following might seem odd. At the time of movement,
 			// the move distance is multiplied by 'friction/0x10000', so a
 			// higher friction value actually means 'less friction'.
-			friction = ORIG_FRICTION - (0x1EB8*strength)/0x80; // ORIG_FRICTION is 0xE800
+			friction = ((0x1EB8*strength)/0x80) - ORIG_FRICTION; // ORIG_FRICTION is 0xE800
 
-			if (friction > FRACUNIT)
-				friction = FRACUNIT;
 			if (friction < 0)
 				friction = 0;
 

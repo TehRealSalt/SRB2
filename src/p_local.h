@@ -333,6 +333,7 @@ void P_ColorTeamMissile(mobj_t *missile, player_t *source);
 SINT8 P_MobjFlip(mobj_t *mobj);
 fixed_t P_GetMobjGravity(mobj_t *mo);
 fixed_t P_GetMobjFriction(mobj_t *mo);
+void P_ApplyFriction(fixed_t *x, fixed_t *y, fixed_t friction);
 FUNCMATH boolean P_WeaponOrPanel(mobjtype_t type);
 
 void P_CalcChasePostImg(player_t *player, camera_t *thiscam);

@@ -1737,7 +1737,7 @@ void P_TouchSpecialThing(mobj_t *special, mobj_t *toucher, boolean heightcheck)
 				mobj_t *mcart = P_SpawnMobj(special->x, special->y, special->z, MT_MINECART);
 				P_SetTarget(&mcart->target, toucher);
 				mcart->angle = toucher->angle = player->drawangle = special->angle;
-				mcart->friction = FRACUNIT;
+				mcart->friction = 0;
 
 				P_ResetPlayer(player);
 				player->pflags |= PF_JUMPDOWN;

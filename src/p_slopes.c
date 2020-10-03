@@ -895,7 +895,7 @@ void P_ButteredSlope(mobj_t *mo)
 	thrust = FixedMul(thrust, abs(P_GetMobjGravity(mo)));
 
 	// ... and its friction against the ground for good measure (divided by original friction to keep behaviour for normal slopes the same).
-	thrust = FixedMul(thrust, FixedDiv(mo->friction, ORIG_FRICTION));
+	thrust = FixedMul(thrust, FixedDiv(P_GetMobjFriction(mo), ORIG_FRICTION));
 
 	P_Thrust(mo, mo->standingslope->xydirection, thrust);
 }

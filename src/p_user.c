@@ -5829,7 +5829,7 @@ static void P_2dMovement(player_t *player)
 static void P_3dMovement(player_t *player)
 {
 	const INT32 baseOldAccel = 40;
-	const fixed_t baseNewAccel = 21*FRACUNIT/128;
+	const fixed_t baseNewAccel = ORIG_FRICTION;
 
 	fixed_t acceleration;
 	fixed_t topspeed;
@@ -5969,9 +5969,9 @@ static void P_3dMovement(player_t *player)
 
 			if (onground)
 			{
-				fixed_t friction = P_GetMobjFriction(player->mo);
-				fixed_t beatfriction = FixedDiv(player->speed, friction) - player->speed;
-				acceleration = FixedDiv(acceleration, friction) + beatfriction;
+				// Counter friction
+				//acceleration += P_GetMobjFriction(player->mo);
+				;
 			}
 			else
 			{
@@ -6004,7 +6004,7 @@ static void P_3dMovement(player_t *player)
 
 		P_InstaThrust(player->mo, player->mo->angle-ANGLE_90, FixedDiv(cmd->sidemove * player->mo->scale, speed));
 	}
-	else if (!(player->pflags & PF_GLIDING || player->exiting || P_PlayerInPain(player)))
+	else if ((acceleration > 0) && !(player->pflags & PF_GLIDING || player->exiting || P_PlayerInPain(player)))
 	{
 		fixed_t reverseMul;
 
@@ -6027,12 +6027,17 @@ static void P_3dMovement(player_t *player)
 		movepush = FixedMul(FixedHypot(cmd->forwardmove * FRACUNIT, cmd->sidemove * FRACUNIT), acceleration / MAXPLMOVE);
 		movepush = FixedMul(movepush, player->mo->scale);
 
-		if (player->pflags & PF_SPINNING)
+		// x0 when going forward, x2 when going backwards
+		reverseMul = AngleFixed(dangle) / 90;
+
+		if (!(player->pflags & PF_SPINNING))
 		{
-			// x0 when going forward, x1 when going backwards
-			reverseMul = (AngleFixed(dangle) / 180);
-			movepush = FixedMul(movepush, reverseMul);
+			// x1 when going forward, x3 when going backwards
+			reverseMul += FRACUNIT;
 		}
+
+		movepush = FixedMul(movepush, reverseMul);
+
 		totalthrust.x += P_ReturnThrustX(player->mo, controldirection, movepush);
 		totalthrust.y += P_ReturnThrustY(player->mo, controldirection, movepush);
 	}
@@ -10853,7 +10858,7 @@ static void P_MinecartThink(player_t *player)
 	P_HandleMinecartSegments(minecart);
 
 	// Force 0 friction.
-	minecart->friction = FRACUNIT;
+	minecart->friction = 0;
 
 	fa = (minecart->angle >> ANGLETOFINESHIFT) & FINEMASK;
 	if (!P_TryMove(minecart, minecart->x + FINECOSINE(fa), minecart->y + FINESINE(fa), true))

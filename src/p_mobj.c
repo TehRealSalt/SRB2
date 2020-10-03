@@ -1564,10 +1564,25 @@ fixed_t P_GetMobjFriction(mobj_t *mo)
 
 	if (mo->player && (mo->player->pflags & PF_SPINNING) && !(mo->player->pflags & PF_STARTDASH))
 	{
-		friction = (549*friction) / 500;
+		friction /= 2;
 	}
 
 	return friction;
+}
+
+void P_ApplyFriction(fixed_t *x, fixed_t *y, fixed_t friction)
+{
+	fixed_t magnitude = R_PointToDist2(*x, *y, 0, 0);
+	angle_t dir = R_PointToAngle2(*x, *y, 0, 0) >> ANGLETOFINESHIFT;
+
+	if (magnitude <= friction)
+	{
+		*x = *y = 0;
+		return;
+	}
+
+	*x += FixedMul(friction, FINECOSINE(dir));
+	*y += FixedMul(friction, FINESINE(dir));
 }
 
 #define STOPSPEED (FRACUNIT)
@@ -1590,13 +1605,11 @@ static void P_SceneryXYFriction(mobj_t *mo, fixed_t oldx, fixed_t oldy)
 	{
 		if ((oldx == mo->x) && (oldy == mo->y)) // didn't go anywhere
 		{
-			mo->momx = FixedMul(mo->momx,ORIG_FRICTION);
-			mo->momy = FixedMul(mo->momy,ORIG_FRICTION);
+			P_ApplyFriction(&mo->momx, &mo->momy, ORIG_FRICTION);
 		}
 		else
 		{
-			mo->momx = FixedMul(mo->momx,mo->friction);
-			mo->momy = FixedMul(mo->momy,mo->friction);
+			P_ApplyFriction(&mo->momx, &mo->momy, mo->friction);
 		}
 
 		if (mo->type == MT_CANNONBALLDECOR)
@@ -1638,17 +1651,15 @@ static void P_XYFriction(mobj_t *mo, fixed_t oldx, fixed_t oldy)
 			mo->momx = player->cmomx;
 			mo->momy = player->cmomy;
 		}
-		else if (!(mo->eflags & MFE_SPRUNG))
+		else if (player->cmd.forwardmove == 0 && player->cmd.sidemove == 0)
 		{
-			if (oldx == mo->x && oldy == mo->y) // didn't go anywhere
+			if ((oldx == mo->x) && (oldy == mo->y)) // didn't go anywhere
 			{
-				mo->momx = FixedMul(mo->momx, ORIG_FRICTION);
-				mo->momy = FixedMul(mo->momy, ORIG_FRICTION);
+				P_ApplyFriction(&mo->momx, &mo->momy, ORIG_FRICTION);
 			}
 			else
 			{
-				mo->momx = FixedMul(mo->momx, friction);
-				mo->momy = FixedMul(mo->momy, friction);
+				P_ApplyFriction(&mo->momx, &mo->momy, friction);
 			}
 
 			mo->friction = ORIG_FRICTION;
