@@ -5828,23 +5828,31 @@ static void P_2dMovement(player_t *player)
 //#define OLD_MOVEMENT_CODE 1
 static void P_3dMovement(player_t *player)
 {
-	ticcmd_t *cmd;
-	angle_t movepushangle, movepushsideangle; // Analog
-	INT32 topspeed, acceleration, thrustfactor;
-	fixed_t movepushforward = 0, movepushside = 0;
-	INT32 mforward = 0, mbackward = 0;
+	const INT32 baseOldAccel = 40;
+	const fixed_t baseNewAccel = 21*FRACUNIT/128;
+
+	fixed_t acceleration;
+	fixed_t topspeed;
+
+	angle_t controldirection;
 	angle_t dangle; // replaces old quadrants bits
-	fixed_t normalspd = FixedMul(player->normalspeed, player->mo->scale);
-	controlstyle_e controlstyle;
-	boolean spin = ((onground = P_IsObjectOnGround(player->mo)) && (player->pflags & (PF_SPINNING|PF_THOKKED)) == PF_SPINNING && (player->rmomx || player->rmomy) && !(player->pflags & PF_STARTDASH));
-	fixed_t oldMagnitude, newMagnitude;
+	fixed_t movepush = 0;
+
+	vector3_t oldMagnitude, newMagnitude;
 	vector3_t totalthrust;
+
+	controlstyle_e controlstyle;
+	ticcmd_t *cmd;
+
+	onground = P_IsObjectOnGround(player->mo);
 
 	totalthrust.x = totalthrust.y = 0; // I forget if this is needed
 	totalthrust.z = FRACUNIT*P_MobjFlip(player->mo)/3; // A bit of extra push-back on slopes
 
 	// Get the old momentum; this will be needed at the end of the function! -SH
-	oldMagnitude = R_PointToDist2(player->mo->momx - player->cmomx, player->mo->momy - player->cmomy, 0, 0);
+	oldMagnitude.x = player->mo->momx - player->cmomx;
+	oldMagnitude.y = player->mo->momy - player->cmomy;
+	oldMagnitude.z = R_PointToDist2(oldMagnitude.x, oldMagnitude.y, 0, 0);
 
 	controlstyle = P_ControlStyle(player);
 
@@ -5875,13 +5883,12 @@ static void P_3dMovement(player_t *player)
 
 	if (controlstyle & CS_LMAOGALOG)
 	{
-		movepushangle = (cmd->angleturn<<16 /* not FRACBITS */);
+		controldirection = (cmd->angleturn<<16 /* not FRACBITS */);
 	}
 	else
 	{
-		movepushangle = player->mo->angle;
+		controldirection = player->mo->angle;
 	}
-	movepushsideangle = movepushangle-ANGLE_90;
 
 	// cmomx/cmomy stands for the conveyor belt speed.
 	if (player->onconveyor == 2) // Wind/Current
@@ -5901,19 +5908,6 @@ static void P_3dMovement(player_t *player)
 	// Calculates player's speed based on distance-of-a-line formula
 	player->speed = P_AproxDistance(player->rmomx, player->rmomy);
 
-	// Monster Iestyn - 04-11-13
-	// Quadrants are stupid, excessive and broken, let's do this a much simpler way!
-	// Get delta angle from rmom angle and player angle first
-	dangle = R_PointToAngle2(0,0, player->rmomx, player->rmomy) - player->mo->angle;
-	if (dangle > ANGLE_180) //flip to keep to one side
-		dangle = InvAngle(dangle);
-
-	// now use it to determine direction!
-	if (dangle <= ANGLE_45) // angles 0-45 or 315-360
-		mforward = 1; // going forwards
-	else if (dangle >= ANGLE_135) // angles 135-225
-		mbackward = 1; // going backwards
-
 	// anything else will leave both at 0, so no need to do anything else
 
 	// When sliding, don't allow forward/back
@@ -5927,214 +5921,121 @@ static void P_3dMovement(player_t *player)
 	// Set the player speeds.
 	if (player->pflags & PF_SLIDING)
 	{
-		normalspd = FixedMul(36<<FRACBITS, player->mo->scale);
-		thrustfactor = 5;
-		acceleration = 96 + (FixedDiv(player->speed, player->mo->scale)>>FRACBITS) * 40;
-		topspeed = normalspd;
-	}
-	else if (player->bot)
-	{ // Bot steals player 1's stats
-		normalspd = FixedMul(players[consoleplayer].normalspeed, player->mo->scale);
-		thrustfactor = players[consoleplayer].thrustfactor;
-		acceleration = players[consoleplayer].accelstart + (FixedDiv(player->speed, player->mo->scale)>>FRACBITS) * players[consoleplayer].acceleration;
-
-		if (player->powers[pw_tailsfly])
-			topspeed = normalspd/2;
-		else if (player->mo->eflags & (MFE_UNDERWATER|MFE_GOOWATER))
-		{
-			topspeed = normalspd/2;
-			acceleration = 2*acceleration/3;
-		}
-		else
-			topspeed = normalspd;
+		acceleration = baseNewAccel;
+		topspeed = 36 * player->mo->scale;
 	}
 	else
 	{
-		if (player->powers[pw_super] || player->powers[pw_sneakers])
+		if (player->bot)
 		{
-			topspeed = 5 * normalspd / 3; // 1.67x
-			thrustfactor = player->thrustfactor*2;
-			acceleration = player->accelstart/2 + (FixedDiv(player->speed, player->mo->scale)>>FRACBITS) * player->acceleration/2;
+			// Bot steals player 1's stats
+			acceleration = (players[consoleplayer].acceleration * baseNewAccel) / baseOldAccel;
+			topspeed = FixedMul(players[consoleplayer].normalspeed, player->mo->scale);
 		}
 		else
 		{
-			topspeed = normalspd;
-			thrustfactor = player->thrustfactor;
-			acceleration = player->accelstart + (FixedDiv(player->speed, player->mo->scale)>>FRACBITS) * player->acceleration;
+			acceleration = (player->acceleration * baseNewAccel) / baseOldAccel;
+			topspeed = FixedMul(player->normalspeed, player->mo->scale);
 		}
 
-		if (player->powers[pw_tailsfly])
-			topspeed >>= 1;
-		else if (player->mo->eflags & (MFE_UNDERWATER|MFE_GOOWATER))
+		if (player->pflags & PF_STARTDASH)
 		{
-			topspeed >>= 1;
-			acceleration = 2*acceleration/3;
+			acceleration = 0;
 		}
-	}
-
-	if (spin) // Prevent gaining speed whilst rolling!
-	{
-		const fixed_t ns = FixedDiv(549*ORIG_FRICTION,500*FRACUNIT); // P_XYFriction
-		topspeed = FixedMul(oldMagnitude, ns);
-	}
-
-	// Better maneuverability while flying
-	if (player->powers[pw_tailsfly])
-	{
-		thrustfactor = player->thrustfactor*2;
-		acceleration = player->accelstart + (FixedDiv(player->speed, player->mo->scale)>>FRACBITS) * player->acceleration;
-	}
-	else
-	{
-		if (player->pflags & PF_BOUNCING)
+		else
 		{
-			if (player->mo->state-states == S_PLAY_BOUNCE_LANDING)
+			if (player->powers[pw_sneakers])
 			{
-				thrustfactor = player->thrustfactor*8;
-				acceleration = player->accelstart/8 + (FixedDiv(player->speed, player->mo->scale)>>FRACBITS) * player->acceleration/8;
+				topspeed *= 2;
+				acceleration *= 2;
+			}
+			else if (player->powers[pw_super])
+			{
+				topspeed = (5 * topspeed) / 3; // 1.67x
+				acceleration *= 2;
+			}
+
+			if (player->mo->eflags & (MFE_UNDERWATER|MFE_GOOWATER))
+			{
+				topspeed /= 2;
+				acceleration /= 2;
+			}
+
+			if (player->mo->movefactor != FRACUNIT)
+			{
+				// Friction-scaled acceleration...
+				acceleration = FixedMul(acceleration, player->mo->movefactor);
+			}
+
+			if (onground)
+			{
+				fixed_t friction = P_GetMobjFriction(player->mo);
+				fixed_t beatfriction = FixedDiv(player->speed, friction) - player->speed;
+				acceleration = FixedDiv(acceleration, friction) + beatfriction;
 			}
 			else
 			{
-				thrustfactor = (3*player->thrustfactor)/4;
-				acceleration = player->accelstart + (FixedDiv(player->speed, player->mo->scale)>>FRACBITS) * player->acceleration;
+				acceleration *= 2;
 			}
 		}
-
-		if (player->mo->movefactor != FRACUNIT) // Friction-scaled acceleration...
-			acceleration = FixedMul(acceleration<<FRACBITS, player->mo->movefactor)>>FRACBITS;
 	}
 
-	// Forward movement
+	// Climbing movement
 	if (player->climbing)
 	{
+		fixed_t speed = 15*FRACUNIT/2;
+
+		if (player->powers[pw_super])
+		{
+			// x0.66 while super
+			speed = 2*speed/3;
+		}
+
+		if (player->mo->eflags & MFE_UNDERWATER)
+		{
+			// x1.33 while underwater
+			speed = 4*speed/3;
+		}
+
 		if (cmd->forwardmove)
 		{
-			if (player->mo->eflags & MFE_UNDERWATER)
-				P_SetObjectMomZ(player->mo, FixedDiv(cmd->forwardmove*FRACUNIT, player->powers[pw_super] ? 20*FRACUNIT/3 : 10*FRACUNIT), false); // 2/3 while super
-			else
-				P_SetObjectMomZ(player->mo, FixedDiv(cmd->forwardmove*FRACUNIT, player->powers[pw_super] ? 5*FRACUNIT : 15*FRACUNIT>>1), false); // 2/3 while super
+			P_SetObjectMomZ(player->mo, FixedDiv(cmd->forwardmove * FRACUNIT, speed), false); 
 		}
+
+		P_InstaThrust(player->mo, player->mo->angle-ANGLE_90, FixedDiv(cmd->sidemove * player->mo->scale, speed));
 	}
-	else if (!(controlstyle == CS_LMAOGALOG)
-		&& cmd->forwardmove != 0 && !(player->pflags & PF_GLIDING || player->exiting
-		|| (P_PlayerInPain(player) && !onground)))
+	else if (!(player->pflags & PF_GLIDING || player->exiting || P_PlayerInPain(player)))
 	{
-		movepushforward = cmd->forwardmove * (thrustfactor * acceleration);
+		fixed_t reverseMul;
 
-		// Allow a bit of movement while spinning
-		if ((player->pflags & (PF_SPINNING|PF_THOKKED)) == PF_SPINNING)
-		{
-			if ((mforward && cmd->forwardmove > 0) || (mbackward && cmd->forwardmove < 0)
-			|| (player->pflags & PF_STARTDASH))
-				movepushforward = 0;
-			else if (onground)
-				movepushforward >>= 4;
-			else
-				movepushforward >>= 3;
-		}
-		// allow very small movement while in air for gameplay
-		else if (!onground)
-			movepushforward >>= 2; // proper air movement
+		// Calculate the angle at which the controls are pointing
+		// to figure out the proper mforward and mbackward.
+		// (Why was it so complicated before? ~Red)
+		controldirection += R_PointToAngle2(0, 0, cmd->forwardmove * FRACUNIT, -cmd->sidemove * FRACUNIT);
 
-		movepushforward = FixedMul(movepushforward, player->mo->scale);
-
-		totalthrust.x += P_ReturnThrustX(player->mo, movepushangle, movepushforward);
-		totalthrust.y += P_ReturnThrustY(player->mo, movepushangle, movepushforward);
-	}
-	// Sideways movement
-	if (player->climbing)
-	{
-		if (player->mo->eflags & MFE_UNDERWATER)
-			P_InstaThrust(player->mo, player->mo->angle-ANGLE_90, FixedDiv(cmd->sidemove*player->mo->scale, player->powers[pw_super] ? 20*FRACUNIT/3 : 10*FRACUNIT)); // 2/3 while super
+		// Monster Iestyn - 04-11-13
+		// Quadrants are stupid, excessive and broken, let's do this a much simpler way!
+		// Get delta angle from momentum angle and player angle first
+		if (player->mo->momx || player->mo->momy)
+			dangle = R_PointToAngle2(0, 0, player->mo->momx, player->mo->momy) - controldirection;
 		else
-			P_InstaThrust(player->mo, player->mo->angle-ANGLE_90, FixedDiv(cmd->sidemove*player->mo->scale, player->powers[pw_super] ? 5*FRACUNIT : 15*FRACUNIT>>1)); // 2/3 while super
-	}
-	// Analog movement control
-	else if (controlstyle == CS_LMAOGALOG)
-	{
-		if (!(player->pflags & PF_GLIDING || player->exiting || P_PlayerInPain(player)))
+			dangle = 0;
+
+		if (dangle > ANGLE_180) //flip to keep to one side
+			dangle = InvAngle(dangle);
+
+		movepush = FixedMul(FixedHypot(cmd->forwardmove * FRACUNIT, cmd->sidemove * FRACUNIT), acceleration / MAXPLMOVE);
+		movepush = FixedMul(movepush, player->mo->scale);
+
+		if (player->pflags & PF_SPINNING)
 		{
-			angle_t controldirection;
-
-			// Calculate the angle at which the controls are pointing
-			// to figure out the proper mforward and mbackward.
-			// (Why was it so complicated before? ~Red)
-			controldirection = R_PointToAngle2(0, 0, cmd->forwardmove*FRACUNIT, -cmd->sidemove*FRACUNIT)+movepushangle;
-
-			movepushforward = FixedHypot(cmd->sidemove, cmd->forwardmove) * (thrustfactor * acceleration);
-
-			// Allow a bit of movement while spinning
-			if ((player->pflags & (PF_SPINNING|PF_THOKKED)) == PF_SPINNING)
-			{
-				if ((mforward && cmd->forwardmove > 0) || (mbackward && cmd->forwardmove < 0)
-				|| (player->pflags & PF_STARTDASH))
-					movepushforward = 0;
-				else if (onground)
-					movepushforward >>= 4;
-				else
-					movepushforward >>= 3;
-			}
-			// allow very small movement while in air for gameplay
-			else if (!onground)
-				movepushforward >>= 2; // proper air movement
-
-			movepushsideangle = controldirection;
-
-			movepushforward = FixedMul(movepushforward, player->mo->scale);
-
-			totalthrust.x += P_ReturnThrustX(player->mo, controldirection, movepushforward);
-			totalthrust.y += P_ReturnThrustY(player->mo, controldirection, movepushforward);
+			// x0 when going forward, x1 when going backwards
+			reverseMul = (AngleFixed(dangle) / 180);
+			movepush = FixedMul(movepush, reverseMul);
 		}
+		totalthrust.x += P_ReturnThrustX(player->mo, controldirection, movepush);
+		totalthrust.y += P_ReturnThrustY(player->mo, controldirection, movepush);
 	}
-	else if (cmd->sidemove && !(player->pflags & PF_GLIDING) && !player->exiting && !P_PlayerInPain(player))
-	{
-		movepushside = cmd->sidemove * (thrustfactor * acceleration);
-
-		// allow very small movement while in air for gameplay
-		if (!onground)
-		{
-			movepushside >>= 2; // proper air movement
-			// Reduce movepushslide even more if over "max" flight speed
-			if (((player->pflags & (PF_SPINNING|PF_THOKKED)) == PF_SPINNING) || (player->powers[pw_tailsfly] && player->speed > topspeed))
-				movepushside >>= 2;
-		}
-		// Allow a bit of movement while spinning
-		else if ((player->pflags & (PF_SPINNING|PF_THOKKED)) == PF_SPINNING)
-		{
-			if (player->pflags & PF_STARTDASH)
-				movepushside = 0;
-			else if (onground)
-				movepushside >>= 4;
-			else
-				movepushside >>= 3;
-		}
-
-		// Finally move the player now that their speed/direction has been decided.
-		movepushside = FixedMul(movepushside, player->mo->scale);
-
-		totalthrust.x += P_ReturnThrustX(player->mo, movepushsideangle, movepushside);
-		totalthrust.y += P_ReturnThrustY(player->mo, movepushsideangle, movepushside);
-	}
-
-	if ((totalthrust.x || totalthrust.y)
-		&& player->mo->standingslope && (!(player->mo->standingslope->flags & SL_NOPHYSICS)) && abs(player->mo->standingslope->zdelta) > FRACUNIT/2) {
-		// Factor thrust to slope, but only for the part pushing up it!
-		// The rest is unaffected.
-		angle_t thrustangle = R_PointToAngle2(0, 0, totalthrust.x, totalthrust.y)-player->mo->standingslope->xydirection;
-
-		if (player->mo->standingslope->zdelta < 0) { // Direction goes down, so thrustangle needs to face toward
-			if (thrustangle < ANGLE_90 || thrustangle > ANGLE_270) {
-				P_QuantizeMomentumToSlope(&totalthrust, player->mo->standingslope);
-			}
-		} else { // Direction goes up, so thrustangle needs to face away
-			if (thrustangle > ANGLE_90 && thrustangle < ANGLE_270) {
-				P_QuantizeMomentumToSlope(&totalthrust, player->mo->standingslope);
-			}
-		}
-	}
-
-	player->mo->momx += totalthrust.x;
-	player->mo->momy += totalthrust.y;
 
 	// Time to ask three questions:
 	// 1) Are we over topspeed?
@@ -6146,29 +6047,62 @@ static void P_3dMovement(player_t *player)
 	// If "no" to 2, normalize to topspeed, so we can't suddenly run faster than it of our own accord.
 	// If "no" to 1, we're not reaching any limits yet, so ignore this entirely!
 	// -Shadow Hog
-	newMagnitude = R_PointToDist2(player->mo->momx - player->cmomx, player->mo->momy - player->cmomy, 0, 0);
-	if (newMagnitude > topspeed)
+
+	newMagnitude.x = player->mo->momx + totalthrust.x;
+	newMagnitude.y = player->mo->momy + totalthrust.y;
+	newMagnitude.z = R_PointToDist2(newMagnitude.x, newMagnitude.y, 0, 0);
+
+	if (newMagnitude.z > topspeed)
 	{
-		fixed_t tempmomx, tempmomy;
-		if (oldMagnitude > topspeed && !spin)
+		vector3_t tempthrust;
+
+		if (oldMagnitude.z > topspeed)
 		{
-			if (newMagnitude > oldMagnitude)
+			if (newMagnitude.z > oldMagnitude.z)
 			{
-				tempmomx = FixedMul(FixedDiv(player->mo->momx - player->cmomx, newMagnitude), oldMagnitude);
-				tempmomy = FixedMul(FixedDiv(player->mo->momy - player->cmomy, newMagnitude), oldMagnitude);
-				player->mo->momx = tempmomx + player->cmomx;
-				player->mo->momy = tempmomy + player->cmomy;
+				tempthrust.x = FixedMul(FixedDiv(newMagnitude.x - player->cmomx, newMagnitude.z), oldMagnitude.z);
+				tempthrust.y = FixedMul(FixedDiv(newMagnitude.y - player->cmomy, newMagnitude.z), oldMagnitude.z);
+				totalthrust.x += tempthrust.x - newMagnitude.x;
+				totalthrust.y += tempthrust.y - newMagnitude.y;
 			}
 			// else do nothing
 		}
 		else
 		{
-			tempmomx = FixedMul(FixedDiv(player->mo->momx - player->cmomx, newMagnitude), topspeed);
-			tempmomy = FixedMul(FixedDiv(player->mo->momy - player->cmomy, newMagnitude), topspeed);
-			player->mo->momx = tempmomx + player->cmomx;
-			player->mo->momy = tempmomy + player->cmomy;
+			tempthrust.x = FixedMul(FixedDiv(newMagnitude.x - player->cmomx, newMagnitude.z), topspeed);
+			tempthrust.y = FixedMul(FixedDiv(newMagnitude.y - player->cmomy, newMagnitude.z), topspeed);
+			totalthrust.x += tempthrust.x - newMagnitude.x;
+			totalthrust.y += tempthrust.y - newMagnitude.y;
 		}
 	}
+
+	// This happens after, so slope thrusts don't get capped!
+	if ((totalthrust.x || totalthrust.y) && player->mo->standingslope && (!(player->mo->standingslope->flags & SL_NOPHYSICS)) && abs(player->mo->standingslope->zdelta) > FRACUNIT/2)
+	{
+		// Factor thrust to slope, but only for the part pushing up it!
+		// The rest is unaffected.
+		angle_t thrustangle = R_PointToAngle2(0, 0, totalthrust.x, totalthrust.y) - player->mo->standingslope->xydirection;
+
+		if (player->mo->standingslope->zdelta < 0)
+		{
+			// Direction goes down, so thrustangle needs to face toward
+			if (thrustangle < ANGLE_90 || thrustangle > ANGLE_270)
+			{
+				P_QuantizeMomentumToSlope(&totalthrust, player->mo->standingslope);
+			}
+		}
+		else
+		{
+			// Direction goes up, so thrustangle needs to face away
+			if (thrustangle > ANGLE_90 && thrustangle < ANGLE_270)
+			{
+				P_QuantizeMomentumToSlope(&totalthrust, player->mo->standingslope);
+			}
+		}
+	}
+
+	player->mo->momx += totalthrust.x;
+	player->mo->momy += totalthrust.y;
 }
 
 //

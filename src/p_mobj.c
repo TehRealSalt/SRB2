@@ -1558,6 +1558,18 @@ void P_CheckGravity(mobj_t *mo, boolean affect)
 	}
 }
 
+fixed_t P_GetMobjFriction(mobj_t *mo)
+{
+	fixed_t friction = mo->friction;
+
+	if (mo->player && (mo->player->pflags & PF_SPINNING) && !(mo->player->pflags & PF_STARTDASH))
+	{
+		friction = (549*friction) / 500;
+	}
+
+	return friction;
+}
+
 #define STOPSPEED (FRACUNIT)
 
 //
@@ -1605,26 +1617,19 @@ static void P_SceneryXYFriction(mobj_t *mo, fixed_t oldx, fixed_t oldy)
 static void P_XYFriction(mobj_t *mo, fixed_t oldx, fixed_t oldy)
 {
 	player_t *player;
+	fixed_t friction;
 
 	I_Assert(mo != NULL);
 	I_Assert(!P_MobjWasRemoved(mo));
 
 	player = mo->player;
+	friction = P_GetMobjFriction(mo);
+
 	if (player) // valid only if player avatar
 	{
-		// spinning friction
-		if (player->pflags & PF_SPINNING && (player->rmomx || player->rmomy) && !(player->pflags & PF_STARTDASH))
-		{
-			if (twodlevel || player->mo->flags2 & MF2_TWOD) // Otherwise handled in P_3DMovement
-			{
-				const fixed_t ns = FixedDiv(549*ORIG_FRICTION,500*FRACUNIT);
-				mo->momx = FixedMul(mo->momx, ns);
-				mo->momy = FixedMul(mo->momy, ns);
-			}
-		}
-		else if (abs(player->rmomx) < FixedMul(STOPSPEED, mo->scale)
-		    && abs(player->rmomy) < FixedMul(STOPSPEED, mo->scale)
-		    && (!(player->cmd.forwardmove && !(twodlevel || mo->flags2 & MF2_TWOD)) && !player->cmd.sidemove && !(player->pflags & PF_SPINNING))
+		if (abs(player->rmomx) < FixedMul(STOPSPEED, mo->scale)
+			&& abs(player->rmomy) < FixedMul(STOPSPEED, mo->scale)
+			&& (!(player->cmd.forwardmove && !(twodlevel || mo->flags2 & MF2_TWOD)) && !player->cmd.sidemove && !(player->pflags & PF_SPINNING))
 			&& !(player->mo->standingslope && (!(player->mo->standingslope->flags & SL_NOPHYSICS)) && (abs(player->mo->standingslope->zdelta) >= FRACUNIT/2)))
 		{
 			// if in a walking frame, stop moving
@@ -1642,8 +1647,8 @@ static void P_XYFriction(mobj_t *mo, fixed_t oldx, fixed_t oldy)
 			}
 			else
 			{
-				mo->momx = FixedMul(mo->momx, mo->friction);
-				mo->momy = FixedMul(mo->momy, mo->friction);
+				mo->momx = FixedMul(mo->momx, friction);
+				mo->momy = FixedMul(mo->momy, friction);
 			}
 
 			mo->friction = ORIG_FRICTION;

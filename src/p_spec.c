@@ -7272,12 +7272,9 @@ static void P_DoScrollMove(mobj_t *thing, fixed_t dx, fixed_t dy, INT32 exclusiv
 		}
 	}
 
-	if (thing->player && (thing->player->pflags & PF_SPINNING) && (thing->player->rmomx || thing->player->rmomy) && !(thing->player->pflags & PF_STARTDASH))
-		fuckaj = FixedDiv(549*ORIG_FRICTION,500*FRACUNIT);
-	else if (thing->friction != ORIG_FRICTION)
-		fuckaj = thing->friction;
+	fuckaj = P_GetMobjFriction(thing);
 
-	if (fuckaj) {
+	if (fuckaj != ORIG_FRICTION) {
 		// refactor thrust for new friction
 		dx = FixedDiv(dx, CARRYFACTOR);
 		dy = FixedDiv(dy, CARRYFACTOR);

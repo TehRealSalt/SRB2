@@ -816,6 +816,7 @@ static void Polyobj_slideThing(mobj_t *mo, fixed_t dx, fixed_t dy)
 {
 	if (mo->player) { // Finally this doesn't suck eggs -fickle
 		fixed_t cdx, cdy;
+		fixed_t friction = P_GetMobjFriction(mo);
 
 		cdx = FixedMul(dx, FRACUNIT-CARRYFACTOR);
 		cdy = FixedMul(dy, FRACUNIT-CARRYFACTOR);
@@ -841,15 +842,8 @@ static void Polyobj_slideThing(mobj_t *mo, fixed_t dx, fixed_t dy)
 			mo->player->cmomy = cdy;
 		}
 
-		dx = FixedMul(dx, FRACUNIT - mo->friction);
-		dy = FixedMul(dy, FRACUNIT - mo->friction);
-
-		if (mo->player->pflags & PF_SPINNING && (mo->player->rmomx || mo->player->rmomy) && !(mo->player->pflags & PF_STARTDASH)) {
-#define SPINMULT 5184 // Consider this a substitute for properly calculating FRACUNIT-friction. I'm tired. -Red
-			dx = FixedMul(dx, SPINMULT);
-			dy = FixedMul(dy, SPINMULT);
-#undef SPINMULT
-		}
+		dx = FixedMul(dx, FRACUNIT - friction);
+		dy = FixedMul(dy, FRACUNIT - friction);
 
 		mo->momx += dx;
 		mo->momy += dy;
