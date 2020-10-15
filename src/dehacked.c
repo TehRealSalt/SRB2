@@ -495,6 +495,10 @@ done:
 	Z_Free(s);
 }
 
+static int mobjslots = 0;
+static int stateslots = 0;
+static int spriteslots = 0;
+
 // TODO: Figure out how to do undolines for this....
 // TODO: Warnings for running out of freeslots
 static void readfreeslots(MYFILE *f)
@@ -550,6 +554,7 @@ static void readfreeslots(MYFILE *f)
 					used_spr[(i-SPR_FIRSTFREESLOT)/8] |= 1<<(i%8); // Okay, this sprite slot has been named now.
 					break;
 				}
+				spriteslots = (i-SPR_FIRSTFREESLOT)+1;
 			}
 			else if (fastcmp(type, "S"))
 			{
@@ -559,6 +564,7 @@ static void readfreeslots(MYFILE *f)
 						strcpy(FREE_STATES[i],word);
 						break;
 					}
+				stateslots = i+1;
 			}
 			else if (fastcmp(type, "MT"))
 			{
@@ -568,6 +574,7 @@ static void readfreeslots(MYFILE *f)
 						strcpy(FREE_MOBJS[i],word);
 						break;
 					}
+				mobjslots = i+1;
 			}
 			else if (fastcmp(type, "SKINCOLOR"))
 			{
@@ -620,6 +627,8 @@ static void readfreeslots(MYFILE *f)
 				deh_warning("Freeslots: unknown enum class '%s' for '%s_%s'", type, type, word);
 		}
 	} while (!myfeof(f)); // finish when the line is empty
+
+	CONS_Printf("Mobj slots used: %d, state slots used: %d, sprite slots used: %d\n", mobjslots, stateslots, spriteslots);
 
 	Z_Free(s);
 }
@@ -10653,6 +10662,7 @@ static inline int lib_freeslot(lua_State *L)
 			}
 			if (j > SPR_LASTFREESLOT)
 				CONS_Alert(CONS_WARNING, "Ran out of free sprite slots!\n");
+			spriteslots = (j-SPR_FIRSTFREESLOT)+1;
 		}
 		else if (fastcmp(type, "S"))
 		{
@@ -10668,6 +10678,7 @@ static inline int lib_freeslot(lua_State *L)
 				}
 			if (i == NUMSTATEFREESLOTS)
 				CONS_Alert(CONS_WARNING, "Ran out of free State slots!\n");
+			stateslots = i+1;
 		}
 		else if (fastcmp(type, "MT"))
 		{
@@ -10683,6 +10694,7 @@ static inline int lib_freeslot(lua_State *L)
 				}
 			if (i == NUMMOBJFREESLOTS)
 				CONS_Alert(CONS_WARNING, "Ran out of free MobjType slots!\n");
+			mobjslots = i+1;
 		}
 		else if (fastcmp(type, "SKINCOLOR"))
 		{
@@ -10746,6 +10758,9 @@ static inline int lib_freeslot(lua_State *L)
 		lua_remove(L, 1);
 		continue;
 	}
+
+	CONS_Printf("Mobj slots used: %d, state slots used: %d, sprite slots used: %d\n", mobjslots, stateslots, spriteslots);
+
 	return r;
 }
 
